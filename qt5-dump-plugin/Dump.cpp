@@ -17,6 +17,7 @@
 
 #include "Dump.hpp"
 
+#include <zlib.h>
 #include <vector>
 #include <cmath>
 using namespace std;
@@ -87,21 +88,36 @@ void Dump::generate_gamma(){
 struct Plane{
 	uint32_t width;
 	uint32_t height;
-	uint32_t depth;
-	const char* const data;
+	uint8_t depth;
+	uint8_t reserved;
+	uint16_t config;
+	const char* data;
+	bool delete_again;
 	
-	Plane( const char* const data ) : data( data ){ }
+	Plane() : data( nullptr ), delete_again( false ){ }
 	
 	int byte_count() const{ return (depth-1) / 8 + 1; }
 	
-	const char* end() const{
-		return data + (uint64_t)width * height * byte_count();
+	uint64_t size() const{
+		return (uint64_t)width * height * byte_count();
 	}
 	
 	const char* scanline( int y ) const{
 		return data + (uint64_t)width * y * byte_count();
 	}
 };
+
+template<typename T>
+T read( const char* const data ){
+	//TODO: have alternative implementation for big-endian
+	return ((T*)data)[0];
+}
+
+void free_planes( vector<Plane> &planes ){
+	for( Plane p : planes )
+		if( p.delete_again && p.data )
+			delete[] p.data;
+}
 
 QImage Dump::to_qimage() const{
 	//Make gamma LUT
@@ -114,24 +130,49 @@ QImage Dump::to_qimage() const{
 	
 	//Keep reading planes until we reach the end of the input
 	while( plane_start < data + size ){
-		uint32_t* properties = (uint32_t*)plane_start;
-		Plane plane( (char*)(properties + 3) );
+		Plane plane;
+		
+		//Read size
+		plane.width = read<uint32_t>( plane_start );
+		plane.height = read<uint32_t>( plane_start + sizeof(uint32_t) );
 		
 		//Read properties
-		//TODO: have alternative implementation for big-endian
-		plane.width = properties[0];
-		plane.height = properties[1];
-		plane.depth = properties[2];
+		plane.depth = read<uint8_t>( plane_start + sizeof(uint32_t)*2 );
+		plane.reserved = read<uint8_t>( plane_start + sizeof(uint32_t)*2 + sizeof(uint8_t) );
+		plane.config = read<uint8_t>( plane_start + sizeof(uint32_t)*2 + sizeof(uint16_t) );
 		
-		plane_start = plane.end();
+		const char* data_start = plane_start + sizeof(uint32_t)*3;
+		if( plane.config & 0x1 ){
+			uint32_t lenght = read<uint32_t>( data_start );
+			data_start += sizeof(uint32_t);
+			plane.delete_again = true;
+			
+			uLongf uncompressed = plane.size();
+			char* buf = new char[ uncompressed ];
+			if( !buf )
+				break;
+			
+			if( uncompress( (Bytef*)buf, &uncompressed, (Bytef*)data_start, lenght ) != Z_OK ){
+				delete[] buf;
+				break;
+			}
+			plane.data = buf;
+			plane_start = data_start + lenght;
+		}
+		else{
+			plane.data = data_start;
+			plane_start = data_start + plane.size();
+		}
 		planes.push_back( plane );
 	}
-	qDebug( "Amount of planes: %d", (int)planes.size() );
 	
 	//TODO: check that we have all the data
 	//TODO: do sanity-checks
-	if( planes.size() != 3 )
+	if( planes.size() != 3 ){
+		qDebug( "Amount of planes: %d", (int)planes.size() );
+		free_planes( planes );
 		return QImage();
+	}
 	
 	//QImage output
 	uint32_t width = planes[0].width;
@@ -163,5 +204,7 @@ QImage Dump::to_qimage() const{
 			out[ix] = qRgb( r/256, g/256, b/256 );
 		}
 	}
+	
+	free_planes( planes );
 	return output;
 }

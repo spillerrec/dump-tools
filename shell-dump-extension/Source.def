@@ -1,0 +1,4 @@
+LIBRARY "shell-dump-extension"
+EXPORTS
+    DllGetClassObject   PRIVATE
+    DllCanUnloadNow     PRIVATE

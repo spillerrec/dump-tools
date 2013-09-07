@@ -1,0 +1,11 @@
+<RCC>
+  <qresource prefix="controls">
+    <file>media-record-3.png</file>
+    <file>media-playback-pause-4.png</file>
+    <file>media-playback-start-4.png</file>
+    <file>media-playback-stop-4.png</file>
+    <file>media-skip-backward-4.png</file>
+    <file>media-skip-forward-4.png</file>
+    <file>view-fullscreen-3.png</file>
+  </qresource>
+</RCC>

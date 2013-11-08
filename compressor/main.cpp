@@ -128,8 +128,9 @@ int main( int argc, char* argv[] ){
 		
 		cout << "[" << i << "/" << args.count()-1 << "] Processing: " << args[i].toLocal8Bit().constData() << "\n";
 		QFile f( args[i] );
+		QString new_name = info.baseName() + ".compressed.dump";
 		if( f.open( QIODevice::ReadOnly ) ){
-			QFile copy( info.baseName() + ".compressed.dump" );
+			QFile copy( new_name );
 			if( copy.open( QIODevice::WriteOnly ) ){
 				while( true ){
 					Plane p;
@@ -141,6 +142,10 @@ int main( int argc, char* argv[] ){
 				copy.close();
 			}
 			f.close();
+			
+			if( QFileInfo( new_name ).size() > 0 ){
+				QFile::remove( args[i] );
+			}
 		}
 		
 	}

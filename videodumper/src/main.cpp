@@ -216,6 +216,7 @@ class VideoFile{
 		
 		bool open();
 		bool seek( unsigned min, unsigned sec );
+		bool seek( int64_t byte );
 		void run();
 		
 		void only_keyframes(){
@@ -296,6 +297,16 @@ bool VideoFile::seek( unsigned min, unsigned sec ){
 	return true;
 }
 
+bool VideoFile::seek( int64_t byte ){
+	if( av_seek_frame( format_context, stream_index, byte, AVSEEK_FLAG_BYTE ) < 0 ){
+		cout << "Couldn't seek\n";
+		return false;
+	}
+	avcodec_flush_buffers( codec_context );
+	cout << "target: " << byte << "\n";
+	return true;
+}
+
 void VideoFile::run(){
 	Planerizer frame( *codec_context );
 	
@@ -324,6 +335,8 @@ void VideoFile::run(){
 }
 
 #include <QTime>
+#include <QFileInfo>
+#include <QDebug>
 #include <QCoreApplication>
 #include <QStringList>
 #include <boost/lexical_cast.hpp>
@@ -334,17 +347,9 @@ int main( int argc, char* argv[] ){
 	//TODO: check arguments
 	QStringList args = app.arguments();
 	if( args.count() < 2 ){
-		cout << "Usage: video_dumper filename [min [sec]]";
+		cout << "Usage: video_dumper filename [min:sec]]";
 		return -1;
 	}
-	
-	//Get seeking values
-	unsigned min=0;
-	unsigned sec=0;
-	if( argc >= 3 )
-		min = boost::lexical_cast<unsigned>( args[2].toUtf8().constData() );
-	if( argc >= 4 )
-		sec = boost::lexical_cast<unsigned>( args[3].toUtf8().constData() );
 	
 	VideoFile file( args[1] );
 	if( !(file.open()) ){
@@ -355,9 +360,32 @@ int main( int argc, char* argv[] ){
 //	file.debug_containter();
 	file.debug_video();
 	
-	if( min || sec ){
-		cout << "Seeking to " << min << ":" << sec << "\n";
-		file.seek( min, sec );
+	if( argc >= 3 ){
+		QString position{ args[2] };
+		
+		int index = position.indexOf( ':' );
+		if( index > 0 ){ //Exists, and must not be in the start
+			QString minutes = position.left( index );
+			QString seconds = position.right( position.count() - index - 1 );
+			
+			//TODO: catch exceptions
+			unsigned min = boost::lexical_cast<unsigned>( minutes.toUtf8().constData() );
+			unsigned sec = boost::lexical_cast<unsigned>( seconds.toUtf8().constData() );
+			
+			file.seek( min, sec );
+		}
+		else if( position.endsWith( '%' ) ){
+			QString value = position.left( position.count() - 1 );
+			double percentage = boost::lexical_cast<double>( value.toUtf8().constData() );
+			
+			QFileInfo info( args[1] );
+			file.seek( (int64_t)( info.size() * percentage / 100 ) );
+			qDebug() << percentage;
+		}
+		else{
+			cout << "Could not understand \"" << position.toLocal8Bit().constData() << "\", use [min:sec] or [percentage%]\n";
+			return -1;
+		}
 	}
 	
 //	file.only_keyframes();

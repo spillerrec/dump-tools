@@ -324,12 +324,16 @@ void VideoFile::run(){
 }
 
 #include <QTime>
+#include <QCoreApplication>
+#include <QStringList>
 #include <boost/lexical_cast.hpp>
 int main( int argc, char* argv[] ){
+	QCoreApplication app( argc, argv );
 	av_register_all();
 	
 	//TODO: check arguments
-	if( argc < 2 ){
+	QStringList args = app.arguments();
+	if( args.count() < 2 ){
 		cout << "Usage: video_dumper filename [min [sec]]";
 		return -1;
 	}
@@ -338,11 +342,11 @@ int main( int argc, char* argv[] ){
 	unsigned min=0;
 	unsigned sec=0;
 	if( argc >= 3 )
-		min = boost::lexical_cast<unsigned>( argv[2] );
+		min = boost::lexical_cast<unsigned>( args[2].toUtf8().constData() );
 	if( argc >= 4 )
-		sec = boost::lexical_cast<unsigned>( argv[3] );
+		sec = boost::lexical_cast<unsigned>( args[3].toUtf8().constData() );
 	
-	VideoFile file( (QString( argv[1] )) );
+	VideoFile file( args[1] );
 	if( !(file.open()) ){
 		cout << "Couldn't open file!";
 		return -1;

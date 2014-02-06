@@ -29,13 +29,13 @@ SHChangeNotify( SHCNE_ASSOCCHANGED, SHCNF_IDLIST, 0, 0 );
 
 ### Building
 
-*Dependencies*
+**Dependencies**
 
 - Windows SDK
 - Visual Studio 2012
 - zlib
 
-*Building*
+**Building**
 
 Ensure that zlib is properly linked. Static linking was used, dynamic linking might work, don't know where the zlib DLL must be located though. Don't know enough about Visual Studio to provide better advise.
 

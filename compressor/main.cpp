@@ -49,6 +49,10 @@ struct Plane{
 		void write_32( QIODevice &dev, uint32_t val ){
 			dev.write( (char*)&val, 4 );
 		}
+		
+		void compression_ratio( unsigned compressed_size ) const{
+			cout << "\tCompressed (" << width << "x" << height << ") to " << 100.0-compressed_size*100.0/size() << "%\n";
+		}
 };
 
 bool Plane::read( QIODevice &dev ){
@@ -104,12 +108,10 @@ bool Plane::read( QIODevice &dev ){
 		}
 		
 		lzma_end(&strm);
-		return true;
 	}
 	else{
 		data.resize( size() );
-		if( dev.read( (char*)data.data(), size() ) != size() )
-			return false;
+		return dev.read( (char*)data.data(), size() ) == size();
 	}
 	
 	return true;
@@ -148,7 +150,7 @@ bool Plane::write( QIODevice &dev ){
 		
 		lzma_end( &strm );
 		
-		cout << "\tCompressed plane (" << width << "x" << height << ") to " << 100.0-(double)final_size/size()*100 << "%\n";
+		compression_ratio( final_size );
 	}
 	else{
 		write_16( dev, 0x1 );
@@ -162,7 +164,7 @@ bool Plane::write( QIODevice &dev ){
 		write_32( dev, buf_size );
 		dev.write( (char*)buf.data(), buf_size );
 		
-		cout << "\tCompressed plane (" << width << "x" << height << ") to " << 100.0-(double)buf_size/size()*100 << "%\n";
+		compression_ratio( buf_size );
 	}
 	return true;
 }

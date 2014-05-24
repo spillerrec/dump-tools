@@ -11,12 +11,7 @@ DumpHandler::DumpHandler() : ref_count( 0 ), loaded( false )
 
 
 DumpHandler::~DumpHandler(){
-	if( planes.size() > 0 ){
-		for( Plane p : planes )
-			if( p.data )
-				delete[] p.data;
-		planes.clear();
-	}
+
 }
 
 
@@ -172,72 +167,11 @@ HRESULT __stdcall DumpHandler::Initialize( IStream *pstream, DWORD grfMode ){
 	UNREFERENCED_PARAMETER(grfMode);
 	ULONG read_bytes;
 
-	bool still_has_data = true;
-	while( still_has_data ){
-		//Read properties
+	while( true ){
 		Plane plane;
-		plane.width    = read<uint32_t>( pstream, still_has_data );
-		plane.height   = read<uint32_t>( pstream, still_has_data );
-		plane.depth    = read<uint8_t>( pstream, still_has_data );
-		plane.reserved = read<uint8_t>( pstream, still_has_data );
-		plane.config   = read<uint16_t>( pstream, still_has_data );
-		if( !still_has_data )
+		if( !plane.read( pstream ) )
 			break;
-
-		uLongf uncompressed = plane.size();
-		if( plane.config & 0x1 ){
-			//Data is compressed
-			uint32_t lenght = read<uint32_t>( pstream, still_has_data );
-
-			//Prepare
-			char *raw = new char[ lenght ];
-			if( !raw )
-				break;
-			char *data = new char[ uncompressed ];
-			if( !data ){
-				delete[] raw;
-				break;
-			}
-
-			//Read
-			still_has_data &=
-				S_OK == pstream->Read( raw, lenght, &read_bytes );
-			if( !still_has_data ){
-				delete[] raw;
-				delete[] data;
-				break;
-			}
-
-			//Uncompress
-			if( uncompress( (Bytef*)data, &uncompressed, (Bytef*)raw, lenght ) != Z_OK ){
-				still_has_data = false;
-				delete[] raw;
-				delete[] data;
-				break;
-			}
-
-			//Assign
-			plane.data = data;
-		}
-		else{
-			//Data is uncompressed
-			char *data = new char[ uncompressed ];
-			if( !data )
-				break;
-			
-			//Read
-			still_has_data &=
-				S_OK == pstream->Read( data, uncompressed, &read_bytes );
-			if( !still_has_data ){
-				delete[] data;
-				break;
-			}
-			
-			//Assign
-			plane.data = data;
-		}
-
-		planes.push_back( plane );
+		planes.emplace_back( plane );
 	}
 
 	std::cout << "Planes amount: " << planes.size() << "\n";

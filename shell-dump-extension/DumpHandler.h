@@ -6,26 +6,7 @@
 #include <stdint.h>
 #include <vector>
 
-struct Plane{
-	uint32_t width;
-	uint32_t height;
-	uint8_t depth;
-	uint8_t reserved;
-	uint16_t config;
-	const char* data;
-	
-	Plane() : data( nullptr ){ }
-	
-	int byte_count() const{ return (depth-1) / 8 + 1; }
-	
-	uint64_t size() const{
-		return (uint64_t)width * height * byte_count();
-	}
-	
-	const char* scanline( int y ) const{
-		return data + (uint64_t)width * y * byte_count();
-	}
-};
+#include "DumpPlane.hpp"
 
 class DumpHandler : public IThumbnailProvider, public IInitializeWithStream{
 	public:

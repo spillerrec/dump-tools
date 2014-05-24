@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdint.h>
 #include <cstring>
+#include <vector>
 using namespace std;
 
 #include <zlib.h>
@@ -15,17 +16,14 @@ const bool USE_LZMA = true;
 
 struct Plane{
 	private:
-		uint32_t width;
-		uint32_t height;
-		uint16_t depth;
-		uint16_t config;
+		uint32_t width{ 0 };
+		uint32_t height{ 0 };
+		uint16_t depth{ 0 };
+		uint16_t config{ 0 };
 		
-		uint8_t* data;
+		vector<uint8_t> data;
 		
 	public:
-		Plane() : width(0), height(0), depth(0), config(0), data(nullptr) { }
-		~Plane(){ if( data ) delete[] data; }
-		
 		bool read( QIODevice &dev );
 		bool write( QIODevice &dev );
 		int32_t size(){ return width*height*((depth + 7) / 8); }
@@ -68,22 +66,14 @@ bool Plane::read( QIODevice &dev ){
 		if( lenght == 0 )
 			return false;
 		
-		char* buf = new char[ lenght ];
-		if( !buf )
-			return false;
-		dev.read( buf, lenght );
+		vector<char> buf( lenght );
+		dev.read( buf.data(), lenght );
 		
 		uLongf uncompressed = size();
-		data = new uint8_t[ uncompressed ];
-		if( !data ){
-			delete[] buf;
-			return false;
-		}
+		data.resize( uncompressed );
 		
-		if( uncompress( (Bytef*)data, &uncompressed, (Bytef*)buf, lenght ) != Z_OK ){
-			delete[] buf;
+		if( uncompress( (Bytef*)data.data(), &uncompressed, (Bytef*)buf.data(), lenght ) != Z_OK )
 			return false;
-		}
 	}
 	else if( config & 0x2 ){
 		//Initialize decoder
@@ -96,43 +86,29 @@ bool Plane::read( QIODevice &dev ){
 		if( lenght == 0 )
 			return false;
 		
-		char* buf = new char[ lenght ];
-		if( !buf )
-			return false;
-		dev.read( buf, lenght );
+		vector<char> buf( lenght );
+		dev.read( buf.data(), lenght );
 		
-		auto uncompressed = size();
-		data = new uint8_t[ uncompressed ];
-		if( !data ){
-			delete[] buf;
-			return false;
-		}
+		data.resize( size() );
 		
 		//Decompress
-		strm.next_in = (uint8_t*)buf;
-		strm.avail_in = lenght;
+		strm.next_in = (uint8_t*)buf.data();
+		strm.avail_in = buf.size();
 		
-		strm.next_out = data;
-		strm.avail_out = uncompressed;
+		strm.next_out = data.data();
+		strm.avail_out = data.size();
 		
 		if( lzma_code( &strm, LZMA_FINISH ) != LZMA_STREAM_END ){
 			cout << "Shit, didn't finish decompressing!" << endl;
-			delete[] buf; //hmm...
 			return false;
 		}
-		
-		
-		delete[] buf; //hmm...
 		
 		lzma_end(&strm);
 		return true;
 	}
 	else{
-		data = new uint8_t[ size() ];
-		if( !data )
-			return false;
-		
-		if( dev.read( (char*)data, size() ) != size() )
+		data.resize( size() );
+		if( dev.read( (char*)data.data(), size() ) != size() )
 			return false;
 	}
 	
@@ -151,44 +127,40 @@ bool Plane::write( QIODevice &dev ){
 		if( lzma_easy_encoder( &strm, 9 | LZMA_PRESET_EXTREME, LZMA_CHECK_CRC64 ) != LZMA_OK )
 			return false;
 		
-		strm.next_in = data;
+		strm.next_in = data.data();
 		strm.avail_in = size();
 		
 		auto buf_size = strm.avail_in * 2;
 		strm.avail_out = buf_size;
-		uint8_t *buf = new uint8_t[ buf_size ];
-		strm.next_out = buf;
+		vector<uint8_t> buf( buf_size );
+		strm.next_out = buf.data();
 		
 		lzma_ret ret = lzma_code( &strm, LZMA_FINISH );
 		if( ret != LZMA_STREAM_END ){
 			cout << "Nooo, didn't finish compressing!" << endl;
-			delete buf;
-			lzma_end( &strm );
+			lzma_end( &strm ); //TODO: Use RAII
 			return false;
 		}
 		
 		auto final_size = buf_size - strm.avail_out;
 		write_32( dev, final_size );
-		dev.write( (char*)buf, final_size );
+		dev.write( (char*)buf.data(), final_size );
 		
-		delete buf;
 		lzma_end( &strm );
+		
+		cout << "\tCompressed plane (" << width << "x" << height << ") to " << 100.0-(double)final_size/size()*100 << "%\n";
 	}
 	else{
 		write_16( dev, 0x1 );
 		
 		uLongf buf_size = compressBound( size() );
-		uint8_t *buf = new uint8_t[ buf_size ];
-		if( !buf )
-			return false;
+		vector<uint8_t> buf( buf_size );
 		
-		if( compress( (Bytef*)buf, &buf_size, (Bytef*)data, size() ) != Z_OK ){
-			delete[] buf;
+		if( compress( (Bytef*)buf.data(), &buf_size, (Bytef*)data.data(), size() ) != Z_OK )
 			return false;
-		}
 		
 		write_32( dev, buf_size );
-		dev.write( (char*)buf, buf_size );
+		dev.write( (char*)buf.data(), buf_size );
 		
 		cout << "\tCompressed plane (" << width << "x" << height << ") to " << 100.0-(double)buf_size/size()*100 << "%\n";
 	}

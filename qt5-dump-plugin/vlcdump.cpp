@@ -32,9 +32,7 @@ bool ric_handler::read( QImage *img_pointer ){
 	if( image_read )
 		return false;
 	
-	QByteArray data = device()->readAll();
-	Dump image( data.data(), data.size() );
-	*img_pointer = image.to_qimage();
+	*img_pointer = Dump( device() ).to_qimage();
 	
 	return image_read=true;
 }

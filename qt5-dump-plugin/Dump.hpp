@@ -24,15 +24,14 @@
 
 class Dump{
 	private:
-		const char* const data;
-		unsigned size;
+		QIODevice* dev;
 		
 		static std::uint16_t* gamma;
 		
 		static void generate_gamma();
 		
 	public:
-		Dump( const char* const data, unsigned size ) : data( data ), size( size ){ };
+		Dump( QIODevice* dev ) : dev( dev ) { };
 		
 		QImage to_qimage() const;
 };

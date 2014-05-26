@@ -35,6 +35,18 @@ struct Plane{
 		std::vector<uint8_t> data;
 		
 	public:
+		uint32_t getWidth() const{ return width; }
+		uint32_t getHeight() const{ return height; }
+		uint8_t getDepth() const{ return depth; }
+		uint16_t getConfig() const{ return config; }
+		
+		int byteCount() const{ return (depth-1) / 8 + 1; }
+
+		const uint8_t* constScanline( unsigned y ) const {
+			return (const uint8_t*)data.data() + (uint64_t)width * y * byte_count();
+		}
+		
+	public:
 		bool read( QIODevice &dev );
 		bool write( QIODevice &dev );
 		int32_t size() const{ return width*height*((depth + 7) / 8); }

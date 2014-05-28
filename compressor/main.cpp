@@ -22,10 +22,10 @@
 #include "DumpPlane.hpp"
 using namespace std;
 
-QString postfix( Plane::Compression comp ){
+QString postfix( DumpPlane::Compression comp ){
 	switch( comp ){
-		case Plane::LZIP: return ".lzip";
-		case Plane::LZMA: return ".lzma";
+		case DumpPlane::LZIP: return ".lzip";
+		case DumpPlane::LZMA: return ".lzma";
 		default: return "";
 	};
 }
@@ -41,13 +41,13 @@ int main( int argc, char* argv[] ){
 		
 		cout << "[" << i << "/" << args.count()-1 << "] Processing: " << args[i].toLocal8Bit().constData() << "\n";
 		QFile f( args[i] );
-		QString new_name = info.baseName() + postfix( Plane::LZMA ) + ".dump";
+		QString new_name = info.baseName() + postfix( DumpPlane::LZMA ) + ".dump";
 		QString temp_name = new_name + ".temp";
 		if( f.open( QIODevice::ReadOnly ) ){
 			QFile copy( temp_name );
 			if( copy.open( QIODevice::WriteOnly ) ){
 				while( true ){
-					Plane p;
+					DumpPlane p;
 					if( !p.read( f ) )
 						break;
 					p.write( copy );

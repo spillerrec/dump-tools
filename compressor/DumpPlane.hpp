@@ -25,7 +25,7 @@
 #include <vector>
 
 
-struct Plane{
+struct DumpPlane{
 	private:
 		uint32_t width{ 0 };
 		uint32_t height{ 0 };

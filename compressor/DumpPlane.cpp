@@ -21,7 +21,7 @@
 
 using namespace std;
 
-bool Plane::read( QIODevice &dev ){
+bool DumpPlane::read( QIODevice &dev ){
 	width  = read_32( dev );
 	height = read_32( dev );
 	depth  = read_16( dev );
@@ -83,7 +83,7 @@ bool Plane::read( QIODevice &dev ){
 	return true;
 }
 
-bool Plane::write( QIODevice &dev, Plane::Compression compression ){
+bool DumpPlane::write( QIODevice &dev, DumpPlane::Compression compression ){
 	if( compression > LZMA )
 		return false;
 	

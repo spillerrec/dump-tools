@@ -4,4 +4,5 @@ TARGET = dump-compressor
 QMAKE_CXXFLAGS += -std=c++11
 LIBS += -lz -llzma
 
-SOURCES += main.cpp DumpPlane.cpp
+HEADERS += DumpPlane.hpp
+SOURCES += DumpPlane.cpp main.cpp

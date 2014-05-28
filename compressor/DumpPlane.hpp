@@ -47,8 +47,13 @@ struct Plane{
 		}
 		
 	public:
+		enum Compression{
+			NONE = 0x0
+		,	LZIP = 0x1
+		,	LZMA = 0x2
+		};
 		bool read( QIODevice &dev );
-		bool write( QIODevice &dev );
+		bool write( QIODevice &dev, Compression compression=LZMA );
 		int32_t size() const{ return width*height*((depth + 7) / 8); }
 		
 		uint16_t read_16( QIODevice &dev ){

@@ -22,6 +22,14 @@
 #include "DumpPlane.hpp"
 using namespace std;
 
+QString postfix( Plane::Compression comp ){
+	switch( comp ){
+		case Plane::LZIP: return ".lzip";
+		case Plane::LZMA: return ".lzma";
+		default: return "";
+	};
+}
+
 int main( int argc, char* argv[] ){
 	QCoreApplication app( argc, argv );
 	
@@ -33,9 +41,10 @@ int main( int argc, char* argv[] ){
 		
 		cout << "[" << i << "/" << args.count()-1 << "] Processing: " << args[i].toLocal8Bit().constData() << "\n";
 		QFile f( args[i] );
-		QString new_name = info.completeBaseName() + ".compressed.dump";
+		QString new_name = info.baseName() + postfix( Plane::LZMA ) + ".dump";
+		QString temp_name = new_name + ".temp";
 		if( f.open( QIODevice::ReadOnly ) ){
-			QFile copy( new_name );
+			QFile copy( temp_name );
 			if( copy.open( QIODevice::WriteOnly ) ){
 				while( true ){
 					Plane p;
@@ -48,8 +57,9 @@ int main( int argc, char* argv[] ){
 			}
 			f.close();
 			
-			if( QFileInfo( new_name ).size() > 0 ){
+			if( QFileInfo( temp_name ).size() > 0 ){
 				QFile::remove( args[i] );
+				QFile::rename( temp_name, new_name );
 			}
 		}
 		

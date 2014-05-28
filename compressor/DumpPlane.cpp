@@ -21,8 +21,6 @@
 
 using namespace std;
 
-const bool USE_LZMA = true;
-
 bool Plane::read( QIODevice &dev ){
 	width  = read_32( dev );
 	height = read_32( dev );
@@ -85,14 +83,16 @@ bool Plane::read( QIODevice &dev ){
 	return true;
 }
 
-bool Plane::write( QIODevice &dev ){
+bool Plane::write( QIODevice &dev, Plane::Compression compression ){
+	if( compression > LZMA )
+		return false;
+	
 	write_32( dev, width );
 	write_32( dev, height );
 	write_16( dev, depth );
+	write_16( dev, compression );
 	
-	if( USE_LZMA ){
-		write_16( dev, 0x2 );
-		
+	if( compression == LZMA ){
 		lzma_stream strm = LZMA_STREAM_INIT;
 		if( lzma_easy_encoder( &strm, 9 | LZMA_PRESET_EXTREME, LZMA_CHECK_CRC64 ) != LZMA_OK )
 			return false;
@@ -120,8 +120,7 @@ bool Plane::write( QIODevice &dev ){
 		
 		compression_ratio( final_size );
 	}
-	else{
-		write_16( dev, 0x1 );
+	else if( compression == LZIP ){
 		
 		uLongf buf_size = compressBound( size() );
 		vector<uint8_t> buf( buf_size );
@@ -133,6 +132,9 @@ bool Plane::write( QIODevice &dev ){
 		dev.write( (char*)buf.data(), buf_size );
 		
 		compression_ratio( buf_size );
+	}
+	else{
+		dev.write( (char*)data.data(), size() );
 	}
 	return true;
 }

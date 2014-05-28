@@ -43,7 +43,7 @@ struct Plane{
 		int byteCount() const{ return (depth-1) / 8 + 1; }
 
 		const uint8_t* constScanline( unsigned y ) const {
-			return (const uint8_t*)data.data() + (uint64_t)width * y * byte_count();
+			return (const uint8_t*)data.data() + (uint64_t)width * y * byteCount();
 		}
 		
 	public:

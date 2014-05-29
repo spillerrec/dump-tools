@@ -16,6 +16,7 @@
 
 #include <QCoreApplication>
 #include <QStringList>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 
@@ -34,14 +35,31 @@ int main( int argc, char* argv[] ){
 	QCoreApplication app( argc, argv );
 	
 	QStringList args = app.arguments();
+	QStringList files;
+	
 	for( int i=1; i<args.count(); ++i ){
 		QFileInfo info( args[i] );
+		if( info.isDir() ){
+			//Add entire folder
+			QDir dir( args[i]);
+			auto list = dir.entryInfoList( QStringList() << "*.dump" );
+			for( auto file : list )
+				files << file.filePath();
+		}
+		else if( info.suffix() == "dump" )
+			files << args[i];
+	}
+	
+	
+	int i = 0;
+	for( auto file : files ){
+		QFileInfo info( file );
 		if( info.suffix() != "dump" )
 			continue;
 		
-		cout << "[" << i << "/" << args.count()-1 << "] Processing: " << args[i].toLocal8Bit().constData() << "\n";
-		QFile f( args[i] );
-		QString new_name = info.baseName() + postfix( DumpPlane::LZMA ) + ".dump";
+		cout << "[" << i << "/" << files.count()-1 << "] Processing: " << file.toLocal8Bit().constData() << "\n";
+		QFile f( file );
+		QString new_name = info.dir().absolutePath() + "/" + info.baseName() + postfix( DumpPlane::LZMA ) + ".dump";
 		QString temp_name = new_name + ".temp";
 		if( f.open( QIODevice::ReadOnly ) ){
 			QFile copy( temp_name );
@@ -58,11 +76,12 @@ int main( int argc, char* argv[] ){
 			f.close();
 			
 			if( QFileInfo( temp_name ).size() > 0 ){
-				QFile::remove( args[i] );
+				QFile::remove( file );
 				QFile::rename( temp_name, new_name );
 			}
 		}
 		
+		i++;
 	}
 	
 	return 0;

@@ -14,7 +14,7 @@ extern "C" {
 
 using namespace std;
 
-const char* const media_type_to_text( AVMediaType t ){
+const char* media_type_to_text( AVMediaType t ){
 	switch( t ){
 		case AVMEDIA_TYPE_UNKNOWN: return "unknown";
 		case AVMEDIA_TYPE_VIDEO: return "video";
@@ -31,27 +31,26 @@ class Plane{
 	private:
 		unsigned width;
 		unsigned height;
-		unsigned *data;
+		vector<unsigned> data;
 		unsigned pos;
 		
 	public:
-		Plane( unsigned width, unsigned height ) : width( width ), height( height ), pos( 0 ){
-			data = new unsigned[ size() ];
-		}
-		~Plane(){
-			delete[] data;
-		}
+		Plane( unsigned width, unsigned height )
+			:	width( width ), height( height ), data( size() ), pos( 0 ) { }
 		
 		void reset(){ pos = 0; }
 		unsigned size() const{ return width * height; }
 		
+		unsigned getWidth() const{ return width; }
+		unsigned getHeight() const{ return height; }
 		
-		Plane& operator<<=( const unsigned &value ){
+		
+		Plane& operator<<=( unsigned value ){
 			data[pos++] = value;
 			return *this;
 		}
 		
-		void save( FILE *f, unsigned depth ){
+		void save( FILE *f, unsigned depth ) const{
 			fwrite( &width, sizeof(unsigned), 1, f );
 			fwrite( &height, sizeof(unsigned), 1, f );
 			fwrite( &depth, sizeof(unsigned), 1, f );
@@ -77,9 +76,11 @@ class Planerizer{
 	private:
 		AVFrame *frame;
 		AVCodecContext &context;
-		vector<Plane*> planes;
-		unsigned depth;
+		vector<Plane> planes;
 		AVPixelFormat format;
+		
+		unsigned depth{ 8 };
+		bool planar{ true };
 		
 		unsigned read8( uint8_t *&data ) const{
 			return *(data++);
@@ -94,20 +95,26 @@ class Planerizer{
 		Planerizer( AVCodecContext &context ) : context( context ), format( context.pix_fmt ){
 			frame = avcodec_alloc_frame();
 			
-			depth = 8;
-			unsigned amount = 3;
+			bool half_width = true;
+			bool half_height = true;
 			
 			switch( format ){
-				case AV_PIX_FMT_YUV420P:
-						
+				// Half-width packed
+				case AV_PIX_FMT_YUYV422:
+						planar = false;
+						half_height = false;
 					break;
-				
+					
+				// Quarter chroma planar
 				case AV_PIX_FMT_YUV420P10LE:
 						depth = 10;
-					break;
+				case AV_PIX_FMT_YUV420P: break;
 				
+				// Full chroma planar
 				case AV_PIX_FMT_YUV444P10LE:
 						depth = 10;
+				case AV_PIX_FMT_YUV444P:
+						half_width = half_height = false;
 					break;
 				
 				default:
@@ -116,9 +123,11 @@ class Planerizer{
 			}
 			
 			
-			planes.push_back( new Plane( context.width, context.height ) );
-			planes.push_back( new Plane( context.width/2, context.height/2 ) );
-			planes.push_back( new Plane( context.width/2, context.height/2 ) );
+			auto chroma_width = half_width ? context.width/2 : context.width;
+			auto chroma_height = half_height ? context.height/2 : context.height;
+			planes.emplace_back( Plane( context.width, context.height ) );
+			planes.emplace_back( Plane( chroma_width, chroma_height ) );
+			planes.emplace_back( Plane( chroma_width, chroma_height ) );
 			
 		}
 		~Planerizer(){
@@ -134,36 +143,38 @@ class Planerizer{
 };
 
 void Planerizer::prepare_planes(){
-	for( Plane *p : planes )
-		p->reset();
+	for( Plane& p : planes )
+		p.reset();
 	
-	for( int iy=0; iy<frame->height; iy++ ){
-		uint8_t *data = frame->data[0] + iy*frame->linesize[0];
+	if( planar ){
+		auto readPlane = [=]( int index, Plane& p, unsigned (Planerizer::*f)( uint8_t*& ) const ){
+				//Read an entire plane into 'p', using reader 'f'
+				for( unsigned iy=0; iy<p.getHeight(); iy++ ){
+					uint8_t *data = frame->data[index] + iy*frame->linesize[index];
+					
+					for( unsigned ix=0; ix < p.getWidth(); ix++)
+						p <<= (this->*f)( data );
+				}
+			};
 		
-		if( depth <= 8 )
-			for( int ix=0; ix<frame->width; ix++)
-				*(planes[0]) <<= read8( data );
-		else
-			for( int ix=0; ix<frame->width; ix++)
-				*(planes[0]) <<= read16( data );
+		for( int i=0; i<3; i++ )
+			readPlane( i, planes[i], (depth <= 8) ? &Planerizer::read8 : &Planerizer::read16 );
 	}
-	
-	for( int iy=0; iy<frame->height/2; iy++ ){
-		uint8_t *data2 = frame->data[1] + iy*frame->linesize[1];
-		uint8_t *data3 = frame->data[2] + iy*frame->linesize[2];
+	else{	
+		auto& luma = planes[0];
 		
-		if( depth <= 8 )
-			for( int ix=0; ix<frame->width/2; ix++ ){
-				*(planes[1]) <<= read8( data2 );
-				*(planes[2]) <<= read8( data3 );
+		for( unsigned iy=0; iy<luma.getHeight(); iy++ ){
+			uint8_t *data = frame->data[0] + iy*frame->linesize[0];
+			//TODO: support other packing formats, and higher bit depths
+			
+			for( unsigned ix=0; ix < luma.getWidth()/2; ix++){
+				luma      <<= read8( data );
+				planes[1] <<= read8( data );
+				luma      <<= read8( data );
+				planes[2] <<= read8( data );
 			}
-		else
-			for( int ix=0; ix<frame->width/2; ix++ ){
-				*(planes[1]) <<= read16( data2 );
-				*(planes[2]) <<= read16( data3 );
-			}
+		}
 	}
-	
 }
 
 void Planerizer::save_frame( int index ) const{
@@ -177,8 +188,8 @@ void Planerizer::save_frame( int index ) const{
 	
 	FILE *file = fopen( name.c_str(), "wb" );
 	if( file ){
-		for( Plane *p : planes )
-			p->save( file, depth );
+		for( auto& p : planes )
+			p.save( file, depth );
 		fclose( file );
 	}
 	else
@@ -223,7 +234,7 @@ class VideoFile{
 			codec_context->skip_loop_filter = AVDISCARD_NONKEY;
 			codec_context->skip_idct = AVDISCARD_NONKEY;
 			codec_context->skip_frame = AVDISCARD_NONKEY;
-			codec_context->lowres = 2;
+		//	codec_context->lowres = 2;
 		}
 		
 		void debug_containter();

@@ -109,7 +109,7 @@ QImage YuvImage( const Plane& y, const Plane& u, const Plane& v, const Plane& al
 		auto row_a = (has_alpha) ? alpha.constScanline( iy ) : nullptr;
 		
 		for( uint64_t ix=0; ix<width; ix++ ){
-			uint16_t r, g, b, a = UINT16_MAX;
+			uint16_t r, g, b, a = max_value;
 			unsigned chroma_x = ix * chroma_stride_x;
 			r = ( y.byteCount() == 1 ) ? row1[ix] : ((uint16_t*)row1)[ix];
 			g = ( u.byteCount() == 1 ) ? row2[chroma_x] : ((uint16_t*)row2)[chroma_x];

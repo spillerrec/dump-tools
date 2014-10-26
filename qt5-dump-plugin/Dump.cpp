@@ -86,41 +86,46 @@ void Dump::generate_gamma(){
 }
 
 #include "DumpPlane.hpp"
-/*
-struct Plane{
-	uint32_t width;
-	uint32_t height;
-	uint8_t depth;
-	uint8_t reserved;
-	uint16_t config;
-	const char* data;
-	bool delete_again;
+
+QImage YuvImage( const Plane& y, const Plane& u, const Plane& v, const Plane& alpha ){
+	uint32_t width = y.getWidth();
+	uint32_t height = y.getHeight();
+	auto has_alpha = alpha.getWidth() != 0;
 	
-	Plane() : data( nullptr ), delete_again( false ){ }
+	QImage output( width, height, QImage::Format_ARGB32 );
+	output.fill( 0 );
 	
-	int byte_count() const{ return (depth-1) / 8 + 1; }
+	double chroma_stride_x = (double)u.getWidth() / y.getWidth();
+	double chroma_stride_y = (double)u.getHeight() / y.getHeight();
+	auto max_value = (uint16_t) (1 << y.getDepth()) - 1;
 	
-	uint64_t size() const{
-		return (uint64_t)width * height * byte_count();
+	//Simple Y' output
+	for( uint32_t iy=0; iy<height; iy++ ){
+		unsigned chroma_y = iy * chroma_stride_y;
+		QRgb* out = (QRgb*)output.scanLine( iy );
+		auto row1 = y.constScanline( iy );
+		auto row2 = u.constScanline( chroma_y );
+		auto row3 = v.constScanline( chroma_y );
+		auto row_a = (has_alpha) ? alpha.constScanline( iy ) : nullptr;
+		
+		for( uint64_t ix=0; ix<width; ix++ ){
+			uint16_t r, g, b, a = UINT16_MAX;
+			unsigned chroma_x = ix * chroma_stride_x;
+			r = ( y.byteCount() == 1 ) ? row1[ix] : ((uint16_t*)row1)[ix];
+			g = ( u.byteCount() == 1 ) ? row2[chroma_x] : ((uint16_t*)row2)[chroma_x];
+			b = ( v.byteCount() == 1 ) ? row3[chroma_x] : ((uint16_t*)row3)[chroma_x];
+			if( row_a )
+				a = ( alpha.byteCount() == 1 ) ? row_a[ix] : ((uint16_t*)row_a)[ix];
+			
+			yuv_to_rgb( r, g, b, max_value, 0.2126, 0.7152, 0.0722 );
+			
+			out[ix] = qRgba( r/256, g/256, b/256, a*255 / max_value );
+		}
 	}
 	
-	const char* scanline( int y ) const{
-		return data + (uint64_t)width * y * byte_count();
-	}
-};
-
-template<typename T>
-T read( const char* const data ){
-	//TODO: have alternative implementation for big-endian
-	return ((T*)data)[0];
+	return output;
 }
 
-void free_planes( vector<Plane> &planes ){
-	for( Plane p : planes )
-		if( p.delete_again && p.data )
-			delete[] p.data;
-}
-*/
 QImage Dump::to_qimage() const{
 	//Make gamma LUT
 	if( !gamma )
@@ -128,50 +133,22 @@ QImage Dump::to_qimage() const{
 	
 	//Initialize planes
 	vector<Plane> planes;
+	Plane alpha;
 	while( true ){
 		Plane p;
 		if( !p.read( *dev ) )
 			break;
 		planes.emplace_back( p );
 	}
+	if( planes.size() == 2 || planes.size() == 4 ){
+		alpha = planes.back();
+		planes.pop_back();
+	}
 	
 	//TODO: check that we have all the data
-	//TODO: do sanity-checks
-	if( planes.size() != 3 ){
-		qDebug( "Amount of planes: %d", (int)planes.size() );
-		return QImage();
-	}
 	
-	//QImage output
-	uint32_t width = planes[0].getWidth();
-	uint32_t height = planes[0].getHeight();
+	if( planes.size() == 3 )
+		return YuvImage( planes[0], planes[1], planes[2], alpha );
 	
-	QImage output( width, height, QImage::Format_RGB32 );
-	output.fill( 0 );
-	
-	double chroma_stride_x = (double)planes[1].getWidth() / planes[0].getWidth();
-	double chroma_stride_y = (double)planes[1].getHeight() / planes[0].getHeight();
-	
-	//Simple Y' output
-	for( uint64_t iy=0; iy<height; iy++ ){
-		unsigned chroma_y = iy * chroma_stride_y;
-		QRgb* out = (QRgb*)output.scanLine( iy );
-		const unsigned char* row1 = (unsigned char*)planes[0].constScanline( iy );
-		const unsigned char* row2 = (unsigned char*)planes[1].constScanline( chroma_y );
-		const unsigned char* row3 = (unsigned char*)planes[2].constScanline( chroma_y );
-		
-		for( uint64_t ix=0; ix<width; ix++ ){
-			uint16_t r, g, b;
-			unsigned chroma_x = ix * chroma_stride_x;
-			r = ( planes[0].byteCount() == 1 ) ? row1[ix] : ((uint16_t*)row1)[ix];
-			g = ( planes[1].byteCount() == 1 ) ? row2[chroma_x] : ((uint16_t*)row2)[chroma_x];
-			b = ( planes[2].byteCount() == 1 ) ? row3[chroma_x] : ((uint16_t*)row3)[chroma_x];
-			
-			yuv_to_rgb( r, g, b, (1<<planes[0].getDepth())-1, 0.2126, 0.7152, 0.0722 );
-			
-			out[ix] = qRgb( r/256, g/256, b/256 );
-		}
-	}
-	
-	return output;
+	return QImage(); //TODO: support grayscale
 }

@@ -126,6 +126,36 @@ QImage YuvImage( const Plane& y, const Plane& u, const Plane& v, const Plane& al
 	return output;
 }
 
+QImage GrayImage( const Plane& gray, const Plane& alpha ){
+	uint32_t width = gray.getWidth();
+	uint32_t height = gray.getHeight();
+	auto has_alpha = alpha.getWidth() != 0;
+	auto max_value = (uint16_t) (1 << gray.getDepth()) - 1;
+	
+	QImage output( width, height, QImage::Format_ARGB32 ); //Really, no grayscale type?
+	output.fill( 0 );
+	
+	//Simple output
+	for( uint32_t iy=0; iy<height; iy++ ){
+		auto out = (QRgb*)output.scanLine( iy );
+		auto input = gray.constScanline( iy );
+		auto row_a = (has_alpha) ? alpha.constScanline( iy ) : nullptr;
+		
+		for( uint64_t ix=0; ix<width; ix++ ){
+			uint16_t g = ( gray.byteCount() == 1 ) ? input[ix] : ((uint16_t*)input)[ix];
+			uint16_t a = max_value;
+			if( row_a )
+				a = ( alpha.byteCount() == 1 ) ? row_a[ix] : ((uint16_t*)row_a)[ix];
+			
+			auto scale_g = g * 255 / max_value;
+			auto scale_a = a * 255 / max_value;
+			out[ix] = qRgba( scale_g, scale_g, scale_g, scale_a );
+		}
+	}
+	
+	return output;
+}
+
 QImage Dump::to_qimage() const{
 	//Make gamma LUT
 	if( !gamma )
@@ -140,15 +170,16 @@ QImage Dump::to_qimage() const{
 			break;
 		planes.emplace_back( p );
 	}
+	
+	//Detect alpha
 	if( planes.size() == 2 || planes.size() == 4 ){
 		alpha = planes.back();
 		planes.pop_back();
 	}
 	
-	//TODO: check that we have all the data
-	
-	if( planes.size() == 3 )
-		return YuvImage( planes[0], planes[1], planes[2], alpha );
-	
-	return QImage(); //TODO: support grayscale
+	switch( planes.size() ){
+		case 3: return YuvImage( planes[0], planes[1], planes[2], alpha );
+		case 1: return GrayImage( planes[0], alpha );
+		default: return QImage();
+	}
 }

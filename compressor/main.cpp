@@ -19,6 +19,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QtConcurrent>
 
 #include "DumpPlane.hpp"
 using namespace std;
@@ -29,6 +30,36 @@ QString postfix( DumpPlane::Compression comp ){
 		case DumpPlane::LZMA: return ".lzma";
 		default: return "";
 	};
+}
+
+QString convert( QString filepath ){
+	QFileInfo info( filepath );
+	if( info.suffix() != "dump" )
+		return filepath;
+	
+	QFile f( filepath );
+	QString new_name = info.dir().absolutePath() + "/" + info.baseName() + postfix( DumpPlane::LZMA ) + ".dump";
+	QString temp_name = new_name + ".temp";
+	if( f.open( QIODevice::ReadOnly ) ){
+		QFile copy( temp_name );
+		if( copy.open( QIODevice::WriteOnly ) ){
+			while( true ){
+				DumpPlane p;
+				if( !p.read( f ) )
+					break;
+				p.write( copy );
+			}
+			
+			copy.close();
+		}
+		f.close();
+		
+		if( QFileInfo( temp_name ).size() > 0 ){
+			QFile::remove( filepath );
+			QFile::rename( temp_name, new_name );
+		}
+	}
+	return filepath;
 }
 
 int main( int argc, char* argv[] ){
@@ -51,38 +82,9 @@ int main( int argc, char* argv[] ){
 	}
 	
 	
-	int i = 0;
-	for( auto file : files ){
-		QFileInfo info( file );
-		if( info.suffix() != "dump" )
-			continue;
-		
-		cout << "[" << i << "/" << files.count()-1 << "] Processing: " << file.toLocal8Bit().constData() << "\n";
-		QFile f( file );
-		QString new_name = info.dir().absolutePath() + "/" + info.baseName() + postfix( DumpPlane::LZMA ) + ".dump";
-		QString temp_name = new_name + ".temp";
-		if( f.open( QIODevice::ReadOnly ) ){
-			QFile copy( temp_name );
-			if( copy.open( QIODevice::WriteOnly ) ){
-				while( true ){
-					DumpPlane p;
-					if( !p.read( f ) )
-						break;
-					p.write( copy );
-				}
-				
-				copy.close();
-			}
-			f.close();
-			
-			if( QFileInfo( temp_name ).size() > 0 ){
-				QFile::remove( file );
-				QFile::rename( temp_name, new_name );
-			}
-		}
-		
-		i++;
-	}
+	auto future = QtConcurrent::mapped( files, convert );
+	for( int i=0; i<files.count(); ++i )
+		cout << "[" << i << "/" << files.count()-1 << "] Processed: " << future.resultAt(i).toLocal8Bit().constData() << "\n";
 	
 	return 0;
 }

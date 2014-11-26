@@ -118,7 +118,7 @@ bool DumpPlane::write( QIODevice &dev, DumpPlane::Compression compression ){
 		
 		lzma_end( &strm );
 		
-		compression_ratio( final_size );
+	//	compression_ratio( final_size );
 	}
 	else if( compression == LZIP ){
 		
@@ -131,7 +131,7 @@ bool DumpPlane::write( QIODevice &dev, DumpPlane::Compression compression ){
 		write_32( dev, buf_size );
 		dev.write( (char*)buf.data(), buf_size );
 		
-		compression_ratio( buf_size );
+	//	compression_ratio( buf_size );
 	}
 	else{
 		dev.write( (char*)data.data(), size() );

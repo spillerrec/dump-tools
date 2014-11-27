@@ -329,20 +329,12 @@ void VideoFile::run(){
 			avcodec_decode_video2( codec_context, frame, &frame_done, &packet );
 			
 			if( frame_done ){
-			//	if( frame.is_keyframe() ){
-					frame.prepare_planes();
-					frame.save_frame( current );
-			//		cout << current << "\n";
-			//	}
-				current++;
-				if( current >= 25000 )
-					return;
+				frame.prepare_planes();
+				frame.save_frame( current++ );
 			}
-			
 		}
 		av_free_packet( &packet );
 	}
-	
 }
 
 #include <QTime>
@@ -404,12 +396,6 @@ int main( int argc, char* argv[] ){
 	t.start();
 	file.run();
 	qDebug( "took: %d", t.restart() );
-	
-	//codec_context->thread_count = 4;
-	
-	
-	
-//	cout << "Size of video is: " << codec_context->coded_width << "x" << codec_context->coded_height << " with type " << codec_context->pix_fmt << "\n";
 	
 	return 0;
 }

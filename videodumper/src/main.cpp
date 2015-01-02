@@ -135,7 +135,7 @@ class Planerizer{
 		}
 		
 		void prepare_planes();
-		void save_frame( int index ) const;
+		void save_frame( QString name, int index ) const;
 		
 		operator AVFrame*(){ return frame; }
 		
@@ -177,23 +177,23 @@ void Planerizer::prepare_planes(){
 	}
 }
 
-void Planerizer::save_frame( int index ) const{
-	string name = "out/output";
+void Planerizer::save_frame( QString name, int index ) const{
+	name += "/output";
 	string id = boost::lexical_cast<string>( index );
-	name += string( "00000" ).replace( 5-id.length(), id.length(), id );
+	name += QString::fromStdString( string( "00000" ).replace( 5-id.length(), id.length(), id ) );
 	if( frame->key_frame )
 		name += "k";
 	name += ".dump";
 	cout << index << "\n";
 	
-	FILE *file = fopen( name.c_str(), "wb" );
+	FILE *file = fopen( name.toLocal8Bit().constData(), "wb" );
 	if( file ){
 		for( auto& p : planes )
 			p.save( file, depth );
 		fclose( file );
 	}
 	else
-		cout << "shit: " << name.c_str() << "\n";
+		cout << "shit: " << name.toLocal8Bit().constData() << "\n";
 	
 }
 
@@ -228,7 +228,7 @@ class VideoFile{
 		bool open();
 		bool seek( unsigned min, unsigned sec );
 		bool seek( int64_t byte );
-		void run();
+		void run( QString dir );
 		
 		void only_keyframes(){
 			codec_context->skip_loop_filter = AVDISCARD_NONKEY;
@@ -318,7 +318,7 @@ bool VideoFile::seek( int64_t byte ){
 	return true;
 }
 
-void VideoFile::run(){
+void VideoFile::run( QString dir ){
 	Planerizer frame( *codec_context );
 	
 	AVPacket packet;
@@ -330,71 +330,89 @@ void VideoFile::run(){
 			
 			if( frame_done ){
 				frame.prepare_planes();
-				frame.save_frame( current++ );
+				frame.save_frame( dir, current++ );
 			}
 		}
 		av_free_packet( &packet );
 	}
 }
 
-#include <QTime>
+#include <boost/lexical_cast.hpp>
 #include <QFileInfo>
+static void seekFromString( VideoFile& file, QString file_name, QString position ){
+	if( position.isEmpty() )
+		return;
+	
+	int index = position.indexOf( ':' );
+	if( index > 0 ){ //Exists, and must not be in the start
+		QString minutes = position.left( index );
+		QString seconds = position.right( position.count() - index - 1 );
+		
+		//TODO: catch exceptions
+		unsigned min = boost::lexical_cast<unsigned>( minutes.toUtf8().constData() );
+		unsigned sec = boost::lexical_cast<unsigned>( seconds.toUtf8().constData() );
+		
+		file.seek( min, sec );
+	}
+	else if( position.endsWith( '%' ) ){
+		QString value = position.left( position.count() - 1 );
+		double percentage = boost::lexical_cast<double>( value.toUtf8().constData() );
+		
+		QFileInfo info( file_name );
+		file.seek( (int64_t)( info.size() * percentage / 100 ) );
+		qDebug() << percentage;
+	}
+	else{
+		cout << "Could not understand \"" << position.toLocal8Bit().constData() << "\", use [min:sec] or [percentage%]\n";
+		return; //TODO: exit
+	}
+}
+
+#include <QTime>
 #include <QDebug>
 #include <QCoreApplication>
 #include <QStringList>
-#include <boost/lexical_cast.hpp>
+#include <QCommandLineParser>
+#include <QDir>
 int main( int argc, char* argv[] ){
 	QCoreApplication app( argc, argv );
 	av_register_all();
 	
-	//TODO: check arguments
-	QStringList args = app.arguments();
-	if( args.count() < 2 ){
-		cout << "Usage: video_dumper filename [min:sec]]";
+	QCommandLineParser parser;
+	parser.addOption( { { "d", "dir" }, "Output directory, will be created if it does not exist.", "folder", "out" } );
+	parser.addPositionalArgument( "video file", "File to dump video frames from" );
+	parser.addPositionalArgument( "seek", "Seek to a specific time", "[min:sec]" );
+	
+	parser.process(app);
+	
+	auto args = parser.positionalArguments();
+	if( args.count() < 1 ){
+		parser.helpText();
+		cout << "Test";
 		return -1;
 	}
 	
-	VideoFile file( args[1] );
-	if( !(file.open()) ){
-		cout << "Couldn't open file!";
+	QString file_name = args[0];
+	QString position = args.count() >=2 ? args[1] : "";
+	
+	VideoFile file( file_name );
+	if( !(file.open()) )
 		return -1;
-	}
 	
 //	file.debug_containter();
 	file.debug_video();
 	
-	if( argc >= 3 ){
-		QString position{ args[2] };
-		
-		int index = position.indexOf( ':' );
-		if( index > 0 ){ //Exists, and must not be in the start
-			QString minutes = position.left( index );
-			QString seconds = position.right( position.count() - index - 1 );
-			
-			//TODO: catch exceptions
-			unsigned min = boost::lexical_cast<unsigned>( minutes.toUtf8().constData() );
-			unsigned sec = boost::lexical_cast<unsigned>( seconds.toUtf8().constData() );
-			
-			file.seek( min, sec );
-		}
-		else if( position.endsWith( '%' ) ){
-			QString value = position.left( position.count() - 1 );
-			double percentage = boost::lexical_cast<double>( value.toUtf8().constData() );
-			
-			QFileInfo info( args[1] );
-			file.seek( (int64_t)( info.size() * percentage / 100 ) );
-			qDebug() << percentage;
-		}
-		else{
-			cout << "Could not understand \"" << position.toLocal8Bit().constData() << "\", use [min:sec] or [percentage%]\n";
-			return -1;
-		}
-	}
+	seekFromString( file, file_name, position );
 	
 //	file.only_keyframes();
 	QTime t;
 	t.start();
-	file.run();
+	auto dir = parser.value("d");
+	if( !QDir(".").mkpath( dir ) ){
+		cout << "Could not create output directory";
+		return -1;
+	}
+	file.run( dir );
 	qDebug( "took: %d", t.restart() );
 	
 	return 0;

@@ -379,7 +379,7 @@ int main( int argc, char* argv[] ){
 	av_register_all();
 	
 	QCommandLineParser parser;
-	parser.addOption( { { "d", "dir" }, "Output directory, will be created if it does not exist.", "folder", "out" } );
+	parser.addOption( QCommandLineOption{ { "d", "dir" }, "Output directory, will be created if it does not exist.", "folder", "out" } );
 	parser.addPositionalArgument( "video file", "File to dump video frames from" );
 	parser.addPositionalArgument( "seek", "Seek to a specific time", "[min:sec]" );
 	

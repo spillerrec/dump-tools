@@ -59,7 +59,7 @@ struct Plane{
 			bool still_has_data = true;
 			char byte1 = read<uint8_t>( dev, still_has_data );
 			char byte2 = read<uint8_t>( dev, still_has_data );
-			return ((uint16_t)byte2 << 8) + (uint8_t)byte1;
+			return still_has_data ? ( (uint16_t)byte2 << 8 ) + (uint8_t)byte1 : 0;
 		}
 		
 		uint32_t read_32( IStream *dev ) {

@@ -3,6 +3,7 @@
 #include <zlib.h>
 
 #include <iostream>
+#include <algorithm>
 
 DumpHandler::DumpHandler() : ref_count( 0 ), loaded( false )
 {
@@ -64,12 +65,16 @@ T read( IStream *pstream, bool &success ){
 
 
 HRESULT __stdcall DumpHandler::QueryInterface( const IID& iid, void** ppv ){
-	if( iid == IID_IUnknown || iid == IID_IThumbnailProvider ){
+	if( iid == IID_IUnknown || iid == IID_IThumbnailProvider )
 		*ppv = static_cast<IThumbnailProvider*>(this);
-	}
-	else if( iid == IID_IInitializeWithStream ){
+	else if( iid == IID_IInitializeWithStream )
 		*ppv = static_cast<IInitializeWithStream*>(this);
-	}
+	else if( iid == IID_IWICBitmapDecoder )
+		*ppv = static_cast<IWICBitmapDecoder*>(this);
+	else if( iid == IID_IWICBitmapFrameDecode )
+		*ppv = static_cast<IWICBitmapFrameDecode*>(this);
+	else if( iid == IID_IWICBitmapSource )
+		*ppv = static_cast<IWICBitmapSource*>(this);
 	else{
 		*ppv = NULL;
 		return E_NOINTERFACE;
@@ -161,6 +166,131 @@ HRESULT __stdcall DumpHandler::GetThumbnail( UINT cx, HBITMAP *phbmp, WTS_ALPHAT
 
 	return S_OK;
 }
+
+HRESULT __stdcall DumpHandler::QueryCapability( IStream *pIStream, DWORD *pdwCapabilities ) {
+	//TODO: check stream for sane size
+	*pdwCapabilities = WICBitmapDecoderCapabilityCanDecodeAllImages;
+	return S_OK;
+}
+
+HRESULT __stdcall DumpHandler::Initialize( IStream *pIStream, WICDecodeOptions ) {
+	return Initialize( pIStream, 0 );
+}
+
+HRESULT __stdcall DumpHandler::GetContainerFormat( GUID *pguidContainerFormat ) {
+	*pguidContainerFormat = CLSID_DumpHandler;
+	return S_OK;
+}
+
+HRESULT __stdcall DumpHandler::GetDecoderInfo( IWICBitmapDecoderInfo **pIDecoderInfo ) {
+	//TODO: 
+	IWICComponentInfo* pComponentInfo = NULL;
+
+	IWICImagingFactory *pFactory = nullptr;
+	HRESULT hr = CoCreateInstance(
+		CLSID_WICImagingFactory,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		IID_IWICImagingFactory,
+		(LPVOID*)&pFactory
+		);
+	hr = pFactory->CreateComponentInfo( CLSID_DumpHandler, &pComponentInfo );
+	pFactory->Release();
+
+	hr = pComponentInfo->QueryInterface( IID_IWICBitmapDecoderInfo, (void**)pIDecoderInfo );
+	return hr;
+}
+
+HRESULT __stdcall DumpHandler::GetFrameCount( UINT *pCount ) {
+	*pCount = 1;
+	return S_OK;
+}
+
+HRESULT __stdcall DumpHandler::GetFrame( UINT index, IWICBitmapFrameDecode **ppIBitmapFrame ) {
+	if( index != 0 )
+		return S_FALSE;
+
+	*ppIBitmapFrame = this;
+	return S_OK;
+}
+
+
+HRESULT __stdcall DumpHandler::GetThumbnail( IWICBitmapSource **ppIThumbnail ) {
+	UNREFERENCED_PARAMETER( ppIThumbnail );
+	return WINCODEC_ERR_CODECNOTHUMBNAIL;
+}
+
+HRESULT __stdcall DumpHandler::GetColorContexts( UINT cCount, IWICColorContext **ppIColorContexts, UINT *pcActualCount ) {
+	*pcActualCount = 1;
+	if( cCount == 0 && ppIColorContexts == nullptr )
+		return S_OK;
+
+	IWICImagingFactory *pFactory = nullptr;
+	HRESULT hr = CoCreateInstance(
+		CLSID_WICImagingFactory,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		IID_IWICImagingFactory,
+		(LPVOID*)&pFactory
+		);
+	pFactory->CreateColorContext( ppIColorContexts );
+	pFactory->Release();
+
+	(*ppIColorContexts)[0].InitializeFromExifColorSpace( 1 ); //TODO: actually provide a YUV one
+
+	return S_OK;
+}
+
+HRESULT __stdcall DumpHandler::GetMetadataQueryReader( IWICMetadataQueryReader **ppIMetadataQueryReader ) {
+	return WINCODEC_ERR_UNSUPPORTEDOPERATION;
+}
+
+
+HRESULT __stdcall DumpHandler::GetSize( UINT *puiWidth, UINT *puiHeight ) {
+	*puiWidth = *puiHeight = 0;
+	for( auto& plane : planes ) {
+		*puiWidth  = (std::max)( *puiWidth,  plane.width );
+		*puiHeight = (std::max)( *puiHeight, plane.height );
+	}
+	return S_OK;
+}
+
+bool DumpHandler::is16Bit() const {
+	for( auto& plane : planes )
+		if( plane.depth > 8 )
+			return true;
+	return false;
+}
+
+HRESULT __stdcall DumpHandler::GetPixelFormat( WICPixelFormatGUID *pPixelFormat ) {
+	*pPixelFormat = GUID_WICPixelFormatUndefined;
+	switch( planes.size() ) {
+		case 0:
+		case 2: //Gray with alpha, don't know how to represent
+			return S_FALSE;
+
+		case 1:
+			*pPixelFormat = is16Bit() ? GUID_WICPixelFormat16bppGray : GUID_WICPixelFormat8bppGray;
+			return S_OK;
+
+		case 3:
+			*pPixelFormat = is16Bit() ? GUID_WICPixelFormat48bppRGB : GUID_WICPixelFormat24bppRGB;
+			return S_OK;
+
+		case 4:
+			*pPixelFormat = is16Bit() ? GUID_WICPixelFormat64bppRGBA : GUID_WICPixelFormat32bppRGBA;
+			return S_OK;
+
+		default:
+			return S_OK;
+	}
+}
+
+HRESULT __stdcall DumpHandler::CopyPixels( const WICRect *prc, UINT cbStride, UINT cbBufferSize, BYTE *pbBuffer ) {
+	//TODO: 
+	return S_OK;
+}
+
 
 #define BUFFER_SIZE 1000
 HRESULT __stdcall DumpHandler::Initialize( IStream *pstream, DWORD grfMode ){

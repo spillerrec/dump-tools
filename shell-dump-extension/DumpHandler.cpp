@@ -287,7 +287,43 @@ HRESULT __stdcall DumpHandler::GetPixelFormat( WICPixelFormatGUID *pPixelFormat 
 }
 
 HRESULT __stdcall DumpHandler::CopyPixels( const WICRect *prc, UINT cbStride, UINT cbBufferSize, BYTE *pbBuffer ) {
-	//TODO: 
+	//Find area to copy
+	UINT width, height;
+	GetSize( &width, &height );
+	WICRect rect = { 0, 0, width, height };
+	if( prc )
+		rect = *prc;
+
+	auto write = [&]( Plane& p, int offset ) {
+		auto scale_x = (double)p.width / width;
+		auto scale_y = (double)p.height / height;
+		
+		for( int iy = 0; iy<rect.Height; iy++ )
+			for( int ix = 0; ix<rect.Width; ix++ ) {
+				auto x = (int)(scale_x * (ix+rect.X));
+				auto y = (int)(scale_y * (iy+rect.Y));
+				auto pix = p.byte_count() == 2 ? ((uint16_t*)p.scanline( y ))[x] >> 2 : p.scanline( y )[x];
+				pbBuffer[iy*cbStride + ix*3 + offset] = pix;
+				//TODO: more!
+			}
+	};
+
+	//Copy channels
+	for( int i = 0; i<3; i++ )
+		write( planes[i], i );
+
+	//Translate YUV
+	for( int iy = 0; iy<rect.Height; iy++ )
+		for( int ix = 0; ix<rect.Width; ix++ ) {
+			uint16_t r = pbBuffer[iy*cbStride + ix*3 + 0];
+			uint16_t g = pbBuffer[iy*cbStride + ix*3 + 1];
+			uint16_t b = pbBuffer[iy*cbStride + ix*3 + 2];
+			yuv_to_rgb( r, g, b, (1<<8)-1, 0.2126, 0.7152, 0.0722 );
+			pbBuffer[iy*cbStride + ix*3 + 0] = r;
+			pbBuffer[iy*cbStride + ix*3 + 1] = g;
+			pbBuffer[iy*cbStride + ix*3 + 2] = b;
+		}
+
 	return S_OK;
 }
 

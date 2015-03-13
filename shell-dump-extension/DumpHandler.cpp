@@ -16,7 +16,7 @@ DumpHandler::~DumpHandler(){
 }
 
 
-void yuv_to_rgb( uint16_t &r, uint16_t &g, uint16_t &b, uint16_t max, double kr, double kg, double kb ){
+void yuv_to_rgb( uint16_t &r, uint16_t &g, uint16_t &b, uint16_t max, double kr, double kg, double kb, uint16_t output_max = 255 ){
 	double y = r / (double)max;
 	double cb = g / (double)max;
 	double cr = b / (double)max;
@@ -47,9 +47,9 @@ void yuv_to_rgb( uint16_t &r, uint16_t &g, uint16_t &b, uint16_t max, double kr,
 	rb = (rb < 0 ) ? 0 : (rb > 1 ) ? 1 : rb;
 	
 	//Transform range
-	r = uint16_t( rr * 255 + 0.5 );
-	g = uint16_t( rg * 255 + 0.5 );
-	b = uint16_t( rb * 255 + 0.5 );
+	r = uint16_t( rr * output_max + 0.5 );
+	g = uint16_t( rg * output_max + 0.5 );
+	b = uint16_t( rb * output_max + 0.5 );
 }
 
 
@@ -294,34 +294,52 @@ HRESULT __stdcall DumpHandler::CopyPixels( const WICRect *prc, UINT cbStride, UI
 	if( prc )
 		rect = *prc;
 
-	auto write = [&]( Plane& p, int offset ) {
+	auto use16 = planes[0].byte_count() == 2;
+	auto write = [&]( int x, int y, int offset, uint16_t value ) {
+		if( use16 )
+			((uint16_t*)(pbBuffer))[y*cbStride/2 + x*3 + offset] = value;
+		else
+			pbBuffer[y*cbStride + x*3 + offset] = value;
+	};
+	auto read = [&]( Plane& p, int x, int y ) {
+		if( use16 )
+			return ((uint16_t*)p.scanline( y ))[x] << (16 - p.depth);
+		else
+			return  (uint16_t) p.scanline( y ) [x] << ( 8 - p.depth);
+	};
+
+	//Copy channels
+	for( int i = 0; i<3; i++ ) {
+		auto& p = planes[i];
 		auto scale_x = (double)p.width / width;
 		auto scale_y = (double)p.height / height;
-		
+
 		for( int iy = 0; iy<rect.Height; iy++ )
 			for( int ix = 0; ix<rect.Width; ix++ ) {
 				auto x = (int)(scale_x * (ix+rect.X));
 				auto y = (int)(scale_y * (iy+rect.Y));
-				auto pix = p.byte_count() == 2 ? ((uint16_t*)p.scanline( y ))[x] >> 2 : p.scanline( y )[x];
-				pbBuffer[iy*cbStride + ix*3 + offset] = pix;
-				//TODO: more!
+				write( ix, iy, i, read( p, x, y ) );
 			}
 	};
-
-	//Copy channels
-	for( int i = 0; i<3; i++ )
-		write( planes[i], i );
 
 	//Translate YUV
 	for( int iy = 0; iy<rect.Height; iy++ )
 		for( int ix = 0; ix<rect.Width; ix++ ) {
-			uint16_t r = pbBuffer[iy*cbStride + ix*3 + 0];
-			uint16_t g = pbBuffer[iy*cbStride + ix*3 + 1];
-			uint16_t b = pbBuffer[iy*cbStride + ix*3 + 2];
-			yuv_to_rgb( r, g, b, (1<<8)-1, 0.2126, 0.7152, 0.0722 );
-			pbBuffer[iy*cbStride + ix*3 + 0] = r;
-			pbBuffer[iy*cbStride + ix*3 + 1] = g;
-			pbBuffer[iy*cbStride + ix*3 + 2] = b;
+			if( use16 ) {
+				uint16_t& r = ((uint16_t*)pbBuffer)[iy*cbStride + ix*3 + 0];
+				uint16_t& g = ((uint16_t*)pbBuffer)[iy*cbStride + ix*3 + 1];
+				uint16_t& b = ((uint16_t*)pbBuffer)[iy*cbStride + ix*3 + 2];
+				yuv_to_rgb( r, g, b, (1<<16)-1, 0.2126, 0.7152, 0.0722, (1<<16)-1 );
+			}
+			else {
+				uint16_t r = pbBuffer[iy*cbStride + ix*3 + 0];
+				uint16_t g = pbBuffer[iy*cbStride + ix*3 + 1];
+				uint16_t b = pbBuffer[iy*cbStride + ix*3 + 2];
+				yuv_to_rgb( r, g, b, (1<<8)-1, 0.2126, 0.7152, 0.0722 );
+				pbBuffer[iy*cbStride + ix*3 + 0] = r;
+				pbBuffer[iy*cbStride + ix*3 + 1] = g;
+				pbBuffer[iy*cbStride + ix*3 + 2] = b;
+			}
 		}
 
 	return S_OK;

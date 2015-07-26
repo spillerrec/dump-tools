@@ -1,12 +1,12 @@
 ## qt5-webp-plugin
 
-dump plugin for Qt5 image loading
+dump plugin for Qt4 and Qt5 image loading
 
 ### Building
 
 **Dependencies**
 
-- Qt5
+- Qt
 - qmake
 - libwebp
 

@@ -10,6 +10,10 @@ Compresses dump files to save space
 
 Qt5 support for loading and displaying dump images.
 
+### kde-dump-thumbnailer
+
+Adds support for thumbnails in KDE programs such as Dolphin. Requires qt5-dump-plugin to be installed.
+
 ### shell-dump-extension
 
 Windows shell plugin for thumbnail support in Windows file explorer

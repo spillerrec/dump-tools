@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=MimeType
+MimeType=image/x-spillerrec-dump
+Icon=fooicon
+Patterns=*.dump;
+DefaultApp=imgviewer
+Comment=Lossless sub-sampled YUV images and more

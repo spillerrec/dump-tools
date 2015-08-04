@@ -10,9 +10,7 @@ extern "C"{
 DumpCreator::DumpCreator(){}
 DumpCreator::~DumpCreator(){}
 
-bool DumpCreator::create( const QString& path, int width, int height, QImage& img ){
-	img = QImage( path ).scaled( width, height, Qt::KeepAspectRatio );
+bool DumpCreator::create( const QString& path, int, int, QImage& img ){
+	img = QImage( path );
 	return !img.isNull();
 }
-
-ThumbCreator::Flags DumpCreator::flags() const{ return Flags(0); }

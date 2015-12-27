@@ -184,7 +184,6 @@ void Planerizer::save_frame( QString name, int index ) const{
 	if( frame->key_frame )
 		name += "k";
 	name += ".dump";
-	cout << index << "\n";
 	
 	FILE *file = fopen( name.toLocal8Bit().constData(), "wb" );
 	if( file ){
@@ -298,8 +297,9 @@ void VideoFile::debug_video(){
 }
 
 bool VideoFile::seek( unsigned min, unsigned sec ){
-	int64_t target = av_rescale_q( min * 60 + sec, format_context->streams[stream_index]->time_base, AV_TIME_BASE_Q );
-	if( av_seek_frame( format_context, stream_index, target, AVSEEK_FLAG_ANY ) < 0 ){
+	int64_t wanted_time = (min * 60 + sec) * AV_TIME_BASE;
+	int64_t target = av_rescale_q( wanted_time, AV_TIME_BASE_Q, format_context->streams[stream_index]->time_base );
+	if( av_seek_frame( format_context, stream_index, target,  0 ) < 0 ){
 		cout << "Couldn't seek\n";
 		return false;
 	}
@@ -318,6 +318,12 @@ bool VideoFile::seek( int64_t byte ){
 	return true;
 }
 
+void formatTime( double seconds ){
+	int  min = seconds / 60;
+	double s = seconds - (min * 60);
+	cout << min << ":" << s;
+}
+
 void VideoFile::run( QString dir ){
 	Planerizer frame( *codec_context );
 	
@@ -327,8 +333,11 @@ void VideoFile::run( QString dir ){
 	while( av_read_frame( format_context, &packet ) >= 0 ){
 		if( packet.stream_index == stream_index ){
 			avcodec_decode_video2( codec_context, frame, &frame_done, &packet );
-			
 			if( frame_done ){
+				cout << "Frame: " << current << " at time ";
+				formatTime( av_rescale_q( (&packet)->pts, format_context->streams[stream_index]->time_base, AV_TIME_BASE_Q) / double(AV_TIME_BASE) );
+				cout << endl;
+				
 				frame.prepare_planes();
 				frame.save_frame( dir, current++ );
 			}

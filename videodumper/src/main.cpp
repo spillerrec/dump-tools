@@ -93,7 +93,7 @@ class Planerizer{
 		
 	public:
 		Planerizer( AVCodecContext &context ) : context( context ), format( context.pix_fmt ){
-			frame = avcodec_alloc_frame();
+			frame = av_frame_alloc();
 			
 			bool half_width = true;
 			bool half_height = true;

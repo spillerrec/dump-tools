@@ -56,18 +56,17 @@ class Plane{
 			fwrite( &depth, sizeof(unsigned), 1, f );
 			
 			unsigned byte_size = size() * (depth<=8 ? 1 : 2);
-			char *temp = new char[ byte_size ];
+			auto temp = std::make_unique<char[]>( byte_size );
 			if( depth <= 8 )
 				for( unsigned i=0; i<size(); i++ )
 					temp[i] = data[i];
 			else
 				for( unsigned i=0; i<size(); i++ ){
-					temp[i*2] = data[i] & 0x00FF;
-					temp[i*2+1] = ( data[i] & 0xFF00 ) >> 8;
+					temp[i*2  ] =  data[i] & 0x00FF;
+					temp[i*2+1] = (data[i] & 0xFF00) >> 8;
 				}
 			
-			fwrite( temp, sizeof(char), byte_size, f );
-			delete temp;
+			fwrite( temp.get(), sizeof(char), byte_size, f );
 		}
 };
 
@@ -95,14 +94,15 @@ class Planerizer{
 		Planerizer( AVCodecContext &context ) : context( context ), format( context.pix_fmt ){
 			frame = av_frame_alloc();
 			
-			bool half_width = true;
-			bool half_height = true;
+			//Set subsampling resolution and color depth
+			unsigned h_sub = 2;
+			unsigned v_sub = 2;
 			
 			switch( format ){
 				// Half-width packed
 				case AV_PIX_FMT_YUYV422:
 						planar = false;
-						half_height = false;
+						v_sub = 1;
 					break;
 					
 				// Quarter chroma planar
@@ -114,25 +114,21 @@ class Planerizer{
 				case AV_PIX_FMT_YUV444P10LE:
 						depth = 10;
 				case AV_PIX_FMT_YUV444P:
-						half_width = half_height = false;
+						h_sub = v_sub = 1;
 					break;
 				
 				default:
-					cout << "Unknown format: " << format;
-					break; //TODO: throw exception
+					throw std::runtime_error( "Unknown format: " + std::to_string( format ) );
 			}
 			
-			
-			auto chroma_width = half_width ? context.width/2 : context.width;
-			auto chroma_height = half_height ? context.height/2 : context.height;
-			planes.emplace_back( Plane( context.width, context.height ) );
-			planes.emplace_back( Plane( chroma_width, chroma_height ) );
-			planes.emplace_back( Plane( chroma_width, chroma_height ) );
+			//Initialize planes
+			planes.emplace_back( context.width,       context.height       );
+			planes.emplace_back( context.width/h_sub, context.height/v_sub );
+			planes.emplace_back( context.width/h_sub, context.height/v_sub );
 			
 		}
-		~Planerizer(){
-			av_free( frame );
-		}
+		Planerizer( const Planerizer& ) = delete;
+		~Planerizer(){ av_free( frame ); }
 		
 		void prepare_planes();
 		void save_frame( QString name, int index ) const;
@@ -290,10 +286,10 @@ void VideoFile::debug_containter(){
 void VideoFile::debug_video(){
 	cout << "time_base: " << format_context->streams[stream_index]->time_base.num << "." << format_context->streams[stream_index]->time_base.den << "\n";
 	cout << "AV_TIME_BASE_Q: " << AV_TIME_BASE_Q.num << "." << AV_TIME_BASE_Q.den << "\n";
-	cout << "Primaries: " << codec_context->color_primaries << "\n";
-	cout << "Transfer: " << codec_context->color_trc << "\n";
-	cout << "ColorSpace: " << codec_context->colorspace << "\n";
-	cout << "Range: " << codec_context->color_range << "\n";
+	cout << "Primaries: "  << codec_context->color_primaries << "\n";
+	cout << "Transfer: "   << codec_context->color_trc       << "\n";
+	cout << "ColorSpace: " << codec_context->colorspace      << "\n";
+	cout << "Range: "      << codec_context->color_range     << "\n";
 }
 
 bool VideoFile::seek( unsigned min, unsigned sec ){

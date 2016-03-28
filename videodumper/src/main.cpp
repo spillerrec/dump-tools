@@ -175,12 +175,12 @@ void Planerizer::prepare_planes(){
 }
 
 void Planerizer::save_frame( QString name, int index ) const{
-	name += "/output";
+	name += QStringLiteral("/output");
 	string id = boost::lexical_cast<string>( index );
 	name += QString::fromStdString( string( "00000" ).replace( 5-id.length(), id.length(), id ) );
 	if( frame->key_frame )
-		name += "k";
-	name += ".dump";
+		name += QStringLiteral("k");
+	name += QStringLiteral(".dump");
 	
 	FILE *file = fopen( name.toLocal8Bit().constData(), "wb" );
 	if( file ){
@@ -385,9 +385,9 @@ int main( int argc, char* argv[] ){
 	av_register_all();
 	
 	QCommandLineParser parser;
-	parser.addOption( QCommandLineOption{ { "d", "dir" }, "Output directory, will be created if it does not exist.", "folder", "out" } );
-	parser.addPositionalArgument( "video file", "File to dump video frames from" );
-	parser.addPositionalArgument( "seek", "Seek to a specific time", "[min:sec]" );
+	parser.addOption( QCommandLineOption{ { QStringLiteral("d"), QStringLiteral("dir") }, QObject::tr("Output directory, will be created if it does not exist."), QObject::tr("folder"), QStringLiteral("out") } );
+	parser.addPositionalArgument( QObject::tr("video file"), QObject::tr("File to dump video frames from") );
+	parser.addPositionalArgument( QObject::tr("seek"), QObject::tr("Seek to a specific time"), QObject::tr("[min:sec]") );
 	
 	parser.process(app);
 	
@@ -399,7 +399,7 @@ int main( int argc, char* argv[] ){
 	}
 	
 	QString file_name = args[0];
-	QString position = args.count() >=2 ? args[1] : "";
+	QString position = args.count() >=2 ? args[1] : QString();
 	
 	VideoFile file( file_name );
 	if( !(file.open()) )
@@ -413,8 +413,8 @@ int main( int argc, char* argv[] ){
 //	file.only_keyframes();
 	QTime t;
 	t.start();
-	auto dir = parser.value("d");
-	if( !QDir(".").mkpath( dir ) ){
+	auto dir = parser.value(QStringLiteral("d"));
+	if( !QDir(QStringLiteral(".")).mkpath( dir ) ){
 		cout << "Could not create output directory";
 		return -1;
 	}

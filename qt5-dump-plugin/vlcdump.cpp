@@ -10,13 +10,15 @@
 Q_EXPORT_PLUGIN2(pnp_dumpplugin, vlcdump)
 #endif
 
+const QByteArray EXT = "dump";
+
 class ric_handler: public QImageIOHandler{
 	private:
 		bool image_read;
 	public:
 		ric_handler( QIODevice *device ) : image_read( false ){
 			setDevice( device );
-			setFormat( "dump" );
+			setFormat( EXT );
 		}
 		
 		bool canRead() const;
@@ -25,7 +27,7 @@ class ric_handler: public QImageIOHandler{
 
 bool ric_handler::canRead() const{
 	return true;
-	if( format() == "dump" )
+	if( format() == EXT )
 		return true;
 	else
 		return false;
@@ -43,11 +45,11 @@ bool ric_handler::read( QImage *img_pointer ){
 
 
 QStringList vlcdump::keys() const{
-	return QStringList() << "dump";
+	return QStringList() << QString::fromLatin1(EXT);
 }
 
 QImageIOPlugin::Capabilities vlcdump::capabilities( QIODevice *device, const QByteArray &format ) const{
-	if( format == "dump" )
+	if( format == EXT )
 		return Capabilities( CanRead );
 	else
 		return 0;

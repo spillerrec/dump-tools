@@ -24,22 +24,24 @@
 #include "DumpPlane.hpp"
 using namespace std;
 
+const QString EXT = QStringLiteral("dump");
+
 QString postfix( DumpPlane::Compression comp ){
 	switch( comp ){
-		case DumpPlane::LZIP: return ".lzip";
-		case DumpPlane::LZMA: return ".lzma";
-		default: return "";
+		case DumpPlane::LZIP: return QStringLiteral(".lzip");
+		case DumpPlane::LZMA: return QStringLiteral(".lzma");
+		default: return {};
 	};
 }
 
 QString convert( QString filepath ){
 	QFileInfo info( filepath );
-	if( info.suffix() != "dump" )
+	if( info.suffix() != EXT )
 		return filepath;
 	
 	QFile f( filepath );
-	QString new_name = info.dir().absolutePath() + "/" + info.baseName() + postfix( DumpPlane::LZMA ) + ".dump";
-	QString temp_name = new_name + ".temp";
+	QString new_name = info.dir().absolutePath() + QStringLiteral("/") + info.baseName() + postfix( DumpPlane::LZMA ) + QStringLiteral(".") + EXT;
+	QString temp_name = new_name + QStringLiteral(".temp");
 	if( f.open( QIODevice::ReadOnly ) ){
 		QFile copy( temp_name );
 		if( copy.open( QIODevice::WriteOnly ) ){
@@ -68,16 +70,18 @@ int main( int argc, char* argv[] ){
 	QStringList args = app.arguments();
 	QStringList files;
 	
+	auto name_filters = QStringList() << QStringLiteral("*.") + EXT;
+	
 	for( int i=1; i<args.count(); ++i ){
 		QFileInfo info( args[i] );
 		if( info.isDir() ){
 			//Add entire folder
 			QDir dir( args[i]);
-			auto list = dir.entryInfoList( QStringList() << "*.dump" );
+			auto list = dir.entryInfoList( name_filters );
 			for( auto file : list )
 				files << file.filePath();
 		}
-		else if( info.suffix() == "dump" )
+		else if( info.suffix() == EXT )
 			files << args[i];
 	}
 	

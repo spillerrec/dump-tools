@@ -109,6 +109,7 @@ class Planerizer{
 				case AV_PIX_FMT_YUV420P10LE:
 						depth = 10;
 				case AV_PIX_FMT_YUV420P: break;
+				case AV_PIX_FMT_YUVJ420P: break;
 				
 				// Full chroma planar
 				case AV_PIX_FMT_YUV444P10LE:

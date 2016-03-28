@@ -274,7 +274,7 @@ HRESULT __stdcall DumpHandler::GetPixelFormat( WICPixelFormatGUID *pPixelFormat 
 			return S_OK;
 
 		case 3:
-			*pPixelFormat = is16Bit() ? GUID_WICPixelFormat48bppRGB : GUID_WICPixelFormat24bppRGB;
+			*pPixelFormat = false ? GUID_WICPixelFormat48bppRGB : GUID_WICPixelFormat24bppRGB;
 			return S_OK;
 
 		case 4:
@@ -297,7 +297,8 @@ HRESULT __stdcall DumpHandler::CopyPixels( const WICRect *prc, UINT cbStride, UI
 	auto use16 = planes[0].byte_count() == 2;
 	auto write = [&]( int x, int y, int offset, uint16_t value ) {
 		if( use16 )
-			((uint16_t*)(pbBuffer))[y*cbStride/2 + x*3 + offset] = value;
+			//((uint16_t*)(pbBuffer))[y*cbStride/2 + x*3 + offset] = value;
+			pbBuffer[y*cbStride + x*3 + offset] = value >> 8;
 		else
 			pbBuffer[y*cbStride + x*3 + offset] = value;
 	};
@@ -325,7 +326,7 @@ HRESULT __stdcall DumpHandler::CopyPixels( const WICRect *prc, UINT cbStride, UI
 	//Translate YUV
 	for( int iy = 0; iy<rect.Height; iy++ )
 		for( int ix = 0; ix<rect.Width; ix++ ) {
-			if( use16 ) {
+			if( false ) {
 				uint16_t& r = ((uint16_t*)pbBuffer)[iy*cbStride + ix*3 + 0];
 				uint16_t& g = ((uint16_t*)pbBuffer)[iy*cbStride + ix*3 + 1];
 				uint16_t& b = ((uint16_t*)pbBuffer)[iy*cbStride + ix*3 + 2];

@@ -386,16 +386,14 @@ int main( int argc, char* argv[] ){
 	
 	QCommandLineParser parser;
 	parser.addOption( QCommandLineOption{ { QStringLiteral("d"), QStringLiteral("dir") }, QObject::tr("Output directory, will be created if it does not exist."), QObject::tr("folder"), QStringLiteral("out") } );
-	parser.addPositionalArgument( QObject::tr("video file"), QObject::tr("File to dump video frames from") );
+	parser.addPositionalArgument( QObject::tr("videofile"), QObject::tr("File to dump video frames from") );
 	parser.addPositionalArgument( QObject::tr("seek"), QObject::tr("Seek to a specific time"), QObject::tr("[min:sec]") );
 	
 	parser.process(app);
 	
 	auto args = parser.positionalArguments();
 	if( args.count() < 1 ){
-		parser.helpText();
-		cout << "Test";
-		return -1;
+		parser.showHelp( -1 );
 	}
 	
 	QString file_name = args[0];

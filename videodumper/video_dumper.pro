@@ -1,8 +1,7 @@
 TEMPLATE = app
-CONFIG += console
+CONFIG += console c++14
 TARGET = video_dumper
 INCLUDEPATH += .
-QMAKE_CXXFLAGS += -std=c++14
 LIBS += -lavcodec -lavformat -lavutil
 
 # Input

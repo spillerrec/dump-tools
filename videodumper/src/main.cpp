@@ -331,9 +331,18 @@ void VideoFile::run( QString dir ){
 	Planerizer frame( *codec_context );
 	
 	AVPacket packet;
+	av_init_packet( &packet );
 	int frame_done;
 	int current = 0;
-	while( av_read_frame( format_context, &packet ) >= 0 ){
+	bool eof = false;
+	do{
+		if( !eof )
+			if( av_read_frame( format_context, &packet ) < 0 )
+				eof = true;
+		if( eof ){
+			packet.data = nullptr;
+			packet.size = 0;
+		}
 		if( packet.stream_index == stream_index ){
 			avcodec_decode_video2( codec_context, frame, &frame_done, &packet );
 			if( frame_done ){
@@ -346,7 +355,8 @@ void VideoFile::run( QString dir ){
 			}
 		}
 		av_free_packet( &packet );
-	}
+		av_init_packet( &packet );
+	} while( !eof || frame_done );
 }
 
 #include <boost/lexical_cast.hpp>

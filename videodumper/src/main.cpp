@@ -80,6 +80,7 @@ class Planerizer{
 		
 		unsigned depth{ 8 };
 		bool planar{ true };
+		bool rgb = false;
 		
 		unsigned read8( uint8_t *&data ) const{
 			return *(data++);
@@ -116,6 +117,11 @@ class Planerizer{
 						depth = 10;
 				case AV_PIX_FMT_YUV444P:
 						h_sub = v_sub = 1;
+					break;
+					
+				case AV_PIX_FMT_GBRP:
+						h_sub = v_sub = 1;
+						rgb = true;
 					break;
 				
 				default:
